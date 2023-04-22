@@ -1,12 +1,22 @@
-from flask import Flask, render_template, request, flash
+from flask import Flask, render_template, request, flash, render_template_string
 from flask_sqlalchemy import SQLAlchemy
+from flask_mail import Mail, Message
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 
 app.config["SECRET_KEY"] = "myapp123"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data.db"
+app.config["MAIL_SERVER"] = "smtp.gmail.com"
+app.config["MAIL_PORT"] = 465
+app.config["MAIL_USE_SSL"] = True
+app.config["MAIL_USERNAME"] = "MyPythonProtfolio@gmail.com"
+app.config["MAIL_PASSWORD"] = os.getenv("PASSWORD")
+
 db = SQLAlchemy(app)
+
+mail = Mail(app)
 
 class Form(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -17,25 +27,27 @@ class Form(db.Model):
     occupation = db.Column(db.String(80))
 
 
-@app.route("/", methods=["GET", "POST"])   # GET is when the user is accessing the website through the url and POST is when they submit the form
+@app.route("/", methods=["GET", "POST"])
 def index():
-    print(request.method)
     if request.method == "POST":
+        # Extract form data
         first_name = request.form["first_name"]
         last_name = request.form["last_name"]
         email = request.form["email"]
         date = request.form["date"]
         date_obj = datetime.strptime(date, "%Y-%m-%d")
-        occupation = request.form["occupation"]
 
-        form = Form(first_name=first_name, last_name=last_name,
-                    email=email, date=date_obj, occupation=occupation)
+        # Render email template with form data
+        email_body = render_template("email.html", first_name=first_name, last_name=last_name, date=date)
 
-        # add the new instance to the database session
-        db.session.add(form)
-        # commit the changes to the database
-        db.session.commit()
-        flash(f"Thank you {first_name}, Your form was submitted successfully!", "success")   # success is a category
+        # Send email message
+        message = Message(subject="Form Application",
+                          sender=app.config["MAIL_USERNAME"],
+                          recipients=[email],
+                          html=email_body)
+        mail.send(message)
+
+        flash(f"Thank you {first_name}, Your form was submitted successfully!", "success")
 
     return render_template("index.html")
 
